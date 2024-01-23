@@ -1,0 +1,231 @@
+#################################################################################################
+#  Interface for the Growth and Yield Model
+#  Author: Cristian R. Montes
+#################################################################################################
+library(shiny)
+library(shinythemes)
+library(plotly)
+library(bslib)
+library(reactable)
+# Define UI for application that draws a histogram
+# shinyUI(
+  
+ui <- fluidPage(
+  theme = shinytheme("darkly"),
+  
+  # # Application title
+  titlePanel(title = "GROW-DAWGS: WILD-DAWGS",
+             windowTitle = "WILD DAWGS"),
+  
+  # Sidebar with a slider input for the number of bins
+  sidebarLayout(
+    sidebarPanel(
+      tabsetPanel(
+        tabPanel("Stand Variables", 
+                 selectInput("Location", 
+                             "Location",
+                             c("Piedmont",
+                               "Upper Coastal Plain",
+                               "Lower Coastal Plain"),
+                             selected = 3),
+                 sliderInput("Hi",
+                             "Stand Dominant Height (ft):",
+                             min = 1,
+                             max = 105,
+                             value = 60,
+                             step  = .5),
+                 sliderInput("N0",
+                             "Planting Density (trees/acre):",
+                             min = 200,
+                             max =1200,
+                             value = 650,
+                             step  = 1),
+                  helpText("Loblolly Pine Growth and Yield Model for UPC and Piedmont. PMRC Research Paper 1990-2 by B. Borders, W.Harrison, D.Adams, R.Bailey and L.Pienaar.
+                                             LCP unpublished model by Cristian R. Montes. Athens, Georgia 2016")
+                 ),
+      tabPanel("Management",
+               sliderInput("ThAge",
+                            "Thinning Age:",
+                            min = 5,
+                            max = 35,
+                            value = 15),
+               sliderInput("ThinDens",
+                           "Post-thinning Density (trees/acre):",
+                            min = 0,
+                           max = 1200,
+                           value = 1200),
+               fluidRow(
+                 column(" ",
+                        width = 6,
+                        numericInput("cstInterest",
+                                     "Interest rate (%)",
+                                     min   = 0,
+                                     max   = 30,
+                                     value = 6,
+                                     width = "200px"),
+                        numericInput("cstSeedling",
+                                     "Seedling Costs ($/1k seedlings):",
+                                     min   = 0,
+                                     max   = 300,
+                                     value = 50,
+                                     width = "200px"),
+                        numericInput("cstPlanting",
+                                     "Planting Cost ($/acre):",
+                                     min   = 0,
+                                     max   = 150,
+                                     value = 1,
+                                     width = "200px"),
+                        numericInput("cstVeg",
+                                     "Other establishment costs ($/acre):",
+                                     min   = 0,
+                                     max   = 300,
+                                     value = 50,
+                                     width = "200px")),
+                 column(" ",
+                        width = 6,
+                        numericInput("cstAdministration",
+                                     "Administration Cost ($/acre):",
+                                     min   = 0,
+                                     max   = 100,
+                                     value = 5,
+                                     width = "200px"),
+                 
+                        numericInput("cstThinning",
+                                     "Thinning Costs ($/ton):",
+                                     min   = 0,
+                                     max   = 300,
+                                     value = 150,
+                                     width = "200px"),
+                        numericInput("cstHarvesting",
+                                     "Harvesting Costs ($/ton):",
+                                     min   = 0,
+                                     max   = 300,
+                                     value = 150,
+                                     width = "200px"))),
+               selectInput("pt_treatment",
+                           "Post-thin Treatment",
+                           choices = c("None","Fire","Herbicide","Mix"),
+                           multiple = F,
+                           selected = "None", 
+                           width = "200px"),
+               conditionalPanel(condition = "input.pt_treatment == 'Fire'",
+                                uiOutput("firecostUI")),
+               conditionalPanel(condition = "input.pt_treatment == 'Herbicide'",
+                                uiOutput("herbcostUI")),
+               conditionalPanel(condition = "input.pt_treatment == 'Mix'",
+                                uiOutput("mixcostUI")),
+               helpText("Only one thinning is allowed in this model.")
+               ),
+      tabPanel("Products",
+               sliderInput("specPr1",
+                           "Pulp diameters (tops - min DBH):",
+                           min   = 1,
+                           max   = 10,
+                           value = c(3,4),
+                           post  = " in"),
+               numericInput("Pr1",
+                           "Pulp Price ($/ton):",
+                           min   =   0,
+                           max   = 200,
+                           value = 10,
+                           width = "200px"),
+               sliderInput("specPr2",
+                           "Chip n Saw diameters (tops - min DBH):",
+                           min = 1,
+                           max = 10,
+                           value = c(6,8),
+                           post  =" in"),
+               numericInput("Pr2",
+                           "Chip n Saw price ($/ton):",
+                           min = 0,
+                           max = 200,
+                           value = 20,
+                           width = "200px"),
+               sliderInput("specPr3",
+                           "Sawtimber diameters (tops - min DBH):",
+                           min   = 5,
+                           max   = 12,
+                           value = c(8,10),
+                           post  = " in"),
+               numericInput("Pr3",
+                           "Sawtimber Price ($/ton):",
+                           min   = 0,
+                           max   = 200,
+                           value = 30,
+                           width = "200px"),
+               helpText("Products are characterized by a minimum top diameter 
+                        and a minimum treshold DBH.")
+               )
+                  
+                  
+      )),
+      
+    # Show a plot of the generated distribution
+    mainPanel(
+      tabsetPanel(id = "my_outputs",
+                  tabPanel("Dominant Height", 
+                           plotlyOutput("SIPlot"),
+                           helpText("The dashed line represents a base scenario for a site index 60ft. 
+                                    Dominant height calculated as the average height of dominant and co dominant trees.")),
+                  tabPanel("Survival",
+                           plotlyOutput("SurvivalPlot")),
+                  tabPanel("Basal Area", 
+                           plotlyOutput("BasalArea")),
+                  tabPanel("Volume",
+                           plotlyOutput("Volume"),
+                           helpText("The dashed line represents a base scenario for the selected site index, 
+                                    650 tpa at year 0 without any thinnings.")),
+                  tabPanel("Dry Weight", 
+                           plotlyOutput("DryWeight"),
+                           helpText("The dashed line represents a base scenario for the selected site index, 
+                                    650 tpa at year 0 without any thinnings.")),
+                  tabPanel("Diameter", 
+                           plotlyOutput("QMD"),
+                           helpText("The dashed line represents a base scenario for the selected site index, 
+                                    650 tpa at year 0 without any thinnings.")),
+                  tabPanel("Extraction", 
+                           plotlyOutput("Extraction")),
+                  tabPanel("Yield Table", 
+                           downloadButton("downloadData", "Download"),
+                           reactableOutput("Yield.Table")),
+                  tabPanel("Financial", 
+                            plotlyOutput("Financial"),
+                            reactableOutput("FinanTable")
+                            ),
+                  tabPanel("Diameter Distribution",
+                           sliderInput("cstDistributionAge",
+                                       "Distribution Age:",
+                                       min = 1,
+                                       max = 35,
+                                       value = 5),
+                           plotOutput("Distribution")),
+                  tabPanel("Northern Bobwhite Quail",
+                           plotlyOutput("Quail"),
+                           helpText("Click on treatment options in the legend to hide/isolate lines."),
+                           helpText("Fire: 2-year rotation"),
+                           helpText("Herbicide: Post-thinning application (Arsenal/Escort/Sunset mix)"),
+                           helpText("Mix: Post-thinning Arsenal/Escort/Sunset application 
+                                    followed by prescribed fire on a 2-year rotation")),
+                  tabPanel("White-tailed Deer",
+                           plotlyOutput("Deer"),
+                           helpText("Click on treatment options in the legend to hide/isolate lines."),
+                           helpText("Fire: 2-year rotation"),
+                           helpText("Herbicide: Post-thinning application (Arsenal/Escort/Sunset mix)"),
+                           helpText("Mix: Post-thinning Arsenal/Escort/Sunset application 
+                                    followed by prescribed fire on a 2-year rotation")),
+                  tabPanel("Understory Plant Diversity",
+                           plotlyOutput("Diversity"),
+                           helpText("Click on treatment options in the legend to hide/isolate lines."),
+                           helpText("Fire: 2-year rotation"),
+                           helpText("Herbicide: Post-thinning application (Arsenal/Escort/Sunset mix)"),
+                           helpText("Mix: Post-thinning Arsenal/Escort/Sunset application 
+                                    followed by prescribed fire on a 2-year rotation"))
+                  ),
+      fluidRow(column(width = 4),
+               column(width = 4, imageOutput("home_img", inline = T)),
+               column(width = 4))
+      
+  )
+))
+# )
+
